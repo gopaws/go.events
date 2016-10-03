@@ -17,8 +17,9 @@ func New(emitter events.Emitter) *PeriodicEmitter {
 		Mutex:   new(sync.Mutex),
 		Emitter: emitter,
 		restart: restart,
-		events:  make(map[string]int),
+		events:  make(map[string]*time.Ticker),
 		timers:  []reflect.SelectCase{{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(restart)}},
+		mapping: make(map[int]string),
 	}
 
 	go ticker.run()
@@ -30,13 +31,14 @@ type PeriodicEmitter struct {
 	events.Emitter
 	*sync.Mutex
 	restart chan needRestart
-	events  map[string]int
+	events  map[string]*time.Ticker
 	timers  []reflect.SelectCase
+	mapping map[int]string
 }
 
 func (emitter *PeriodicEmitter) RegisterEvent(event string, value interface{}, handlers ...events.Listener) {
-	ticker.Lock()
-	defer ticker.Unlock()
+	emitter.Lock()
+	defer emitter.Unlock()
 
 	var timer *time.Ticker
 	switch value.(type) {
@@ -48,46 +50,54 @@ func (emitter *PeriodicEmitter) RegisterEvent(event string, value interface{}, h
 		return
 	}
 
-	ticker.timers = append(ticker.timers, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(timer.C)})
+	emitter.mapping[len(emitter.timers)] = event
+	emitter.timers = append(emitter.timers, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(timer.C)})
+	emitter.events[event] = timer
 
-	ticker.events[event] = len(ticker.timers) - 1
 	if len(handlers) > 0 {
-		ticker.AddEventListener(event, handlers...)
+		emitter.AddEventListener(event, handlers...)
 	}
 
-	ticker.restart <- needRestart{}
+	emitter.restart <- needRestart{}
 }
 
-func (ticker *PeriodicEmitter) RemoveEvent(eventName string) {
-	ticker.Lock()
-	defer ticker.Unlock()
+func (emitter *PeriodicEmitter) RemoveEvent(event string) {
+	emitter.Lock()
+	defer emitter.Unlock()
 
-	timerPosition, exists := ticker.events[eventName]
+	_, exists := emitter.events[event]
 	if !exists {
 		return
 	}
 
-	delete(ticker.events, eventName)
-	ticker.timers = append(ticker.timers[:timerPosition], ticker.timers[timerPosition+1:]...)
-	ticker.RemoveEventListeners(eventName)
-	ticker.restart <- needRestart{}
+	delete(emitter.events, event)
+	emitter.refresh()
+	emitter.RemoveEventListeners(event)
+	emitter.restart <- needRestart{}
 }
 
-func (ticker *PeriodicEmitter) run() {
-	for {
-		selectedIndex, _, ok := reflect.Select(ticker.timers)
+func (emitter *PeriodicEmitter) refresh() {
+	emitter.timers = []reflect.SelectCase{emitter.timers[0]}
+	for event, timer := range emitter.events {
+		emitter.mapping[len(emitter.timers)] = event
+		emitter.timers = append(emitter.timers, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(timer.C),
+		})
+	}
+}
 
-		if selectedIndex > 0 {
-			for eventName, timerPostion := range ticker.events {
+func (emitter *PeriodicEmitter) run() {
+	for {
+		if index, _, ok := reflect.Select(emitter.timers); index > 0 {
+			if event, exists := emitter.mapping[index]; exists {
 				if ok {
-					if timerPostion == selectedIndex {
-						ticker.Fire(eventName)
-					}
+					emitter.Fire(event)
 				} else {
-					ticker.Lock()
-					delete(ticker.events, eventName)
-					ticker.timers = append(ticker.timers[:selectedIndex], ticker.timers[selectedIndex+1:]...)
-					ticker.Unlock()
+					emitter.Lock()
+					delete(emitter.events, event)
+					emitter.refresh()
+					emitter.Unlock()
 				}
 			}
 		}

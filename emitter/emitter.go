@@ -37,6 +37,10 @@ func (emitter Emitter) AddEventListener(event string, handlers ...events.Listene
 	emitter.Dispatchers[event].AddSubscribers(handlers...)
 }
 
+func (emitter Emitter) RemoveEventListeners(event string) {
+	delete(emitter.Dispatchers, event)
+}
+
 func (emitter Emitter) Fire(e interface{}, context ...meta.Map) {
 	var event events.Event
 

@@ -7,6 +7,7 @@ import (
 type Emitter interface {
 	On(string, ...Listener) Emitter
 	AddEventListener(string, ...Listener)
+	RemoveEventListeners(string)
 	Fire(interface{}, ...meta.Map)
 }
 
