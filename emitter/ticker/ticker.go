@@ -41,11 +41,11 @@ func (emitter *PeriodicEmitter) RegisterEvent(event string, value interface{}, h
 	defer emitter.Unlock()
 
 	var timer *time.Ticker
-	switch value.(type) {
+	switch value := value.(type) {
 	case time.Duration:
-		timer = time.NewTicker(value.(time.Duration))
-	case time.Ticker:
-		timer = value.(*time.Ticker)
+		timer = time.NewTicker(value)
+	case *time.Ticker:
+		timer = value
 	default:
 		return
 	}

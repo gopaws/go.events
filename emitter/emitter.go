@@ -44,11 +44,11 @@ func (emitter Emitter) RemoveEventListeners(event string) {
 func (emitter Emitter) Fire(e interface{}, context ...meta.Map) {
 	var event events.Event
 
-	switch e.(type) {
+	switch e := e.(type) {
 	case string:
-		event = events.New(e.(string))
+		event = events.New(e)
 	case events.Event:
-		event = e.(events.Event)
+		event = e
 	}
 
 	if len(context) > 0 {
