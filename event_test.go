@@ -1,22 +1,20 @@
-package events
+package events_test
 
 import (
-	"testing"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"../events"
 )
 
-type NewListener struct {
-	Target bool
-}
+var _ = Describe("Event", func() {
+	It("should create event object", func() {
+		Expect(events.New("test")).To(BeEquivalentTo(events.Event{Key: "test", Context: events.Map{}}))
+	})
 
-func (handler *NewListener) Handle(event Event) {
-	handler.Target = true
-}
-
-func TestString(t *testing.T) {
-	name := "test"
-	event := New(name)
-	if event.String() != name {
-		t.Log("Fail event create")
-		t.Fail()
-	}
-}
+	It("should subscribe callback to event", func() {
+		emitter := events.NewEmitter()
+		emitter.On("test", events.Callback(func(event events.Event) {}))
+		// Expect(events.New("test")).To(BeEquivalentTo(events.Event{Key: "test", Context: events.Map{}}))
+	})
+})
