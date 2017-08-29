@@ -1,21 +1,23 @@
 go.events
 ===========
 
-`go.events` is a small [Observer](https://en.wikipedia.org/wiki/Observer_pattern) implemetation for golang
+Package `events` is implementation of [Observer](https://en.wikipedia.org/wiki/Observer_pattern)
 
-[![GoDoc](https://godoc.org/github.com/ADone/go.events?status.svg)](https://godoc.org/github.com/ADone/go.events)
-[![Join the chat at https://gitter.im/ADone/go.events](https://badges.gitter.im/ADone/go.events.svg)](https://gitter.im/ADone/go.events?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![GoDoc](https://godoc.org/gopkg.in/adone/go.events.v2?status.svg)](https://godoc.org/gopkg.in/adone/go.events.v2)
 
 Import
 ------
 
 `go.events` available through [gopkg.in](http://labix.org/gopkg.in) interface:
+
 ```go
-import "gopkg.in/ADone/go.events.v1"
+import "gopkg.in/adone/go.events.v2"
 ```
+
 or directly from github:
+
 ```go
-import "github.com/ADone/go.events"
+import "github.com/adone/go.events.v2"
 ```
 
 Usage
@@ -23,76 +25,80 @@ Usage
 
 ### Event
 
-Creating standalone event object:
+Create event:
+
 ```go
 event := events.New("eventName")
-event.Meta["key"] = value
+event.Context["key"] = value
 ```
-For `Meta` field see [go.meta](https://github.com/ADone/go.meta)
+
+Or create with predefined context:
+
+```go
+data := events.Map{"foo": "bar"} // or map[string]interface{}{"foo": "bar"}
+event := events.New("eventName", events.WithContext(data))
+```
 
 ### Emitter
 
-Package `emiter` implements `events.Emitter` interface
-```go
-import (
-	"gopkg.in/ADone/go.events.v1"
-	"gopkg.in/ADone/go.events.v1/emitter"
-)
-```
-
 #### Create
 
-Emitter could combined with other structs via common `events.Emitter` interface:
+`Emitter` can be embed into other struct:
+
 ```go
 type Object struct {
-	events.Emitter
+	*events.Emitter
 }
 
-object := Object{emitter.New()}
-```
-> it's preferable usage example,
-> it simplify test cases of base structs
-
-Emitter could be created with specific dispatch strategy:
-```go
-import "gopkg.in/ADone/go.events.v1/dispatcher"
+object := Object{events.NewEmitter()}
 ```
 
-``` go
-emitter.New(dispatcher.BroadcastFactory)
-emitter.New(dispatcher.ParallelBroadcastFactory)
-```
+> it is a preferable use of `Emitter`
 
-#### Emmit event
-
-Emit concrete event object:
+`Emitter` supports different delivery strategies:
 
 ```go
-em := emitter.New()
+events.NewEmitter(events.WithDefaultStrategy(Broadcast))
+
+events.NewEmitter(events.WithEventStrategy("event.for.parallel.processing", ParallelBroadcast))
+```
+
+You can define custom strategies by implementing `DispatchStrategy` function:
+
+```go
+customStrategy := func(event events.Event, listeners map[events.Listener]struct{}) {
+	// ...
+}
+```
+
+#### Fire event
+
+```go
+em := events.NewEmitter()
+
 em.Fire(events.New("event"))
 ```
 
-Emit event with label & params:
+fire event with parameters
+
 ```go
 em.Fire("event")
-// or with event params
-em.Fire("event", meta.Map{"key": "value"})
-// or with plain map
-em.Fire("event", map[string]interface{}{"key": "value"})
+//or
+em.Fire(events.New("event"))
 ````
-> Be carefully with concurrent access to `event.Meta`
 
-#### Subscribe for event
-
-Emitter supports only `events.Listener` interface for subscription, but it can be extended by embedded types:
+#### Subscription on event
 
 * channels
+
 ```go
 channel := make(chan events.Event)
 
 object.AddEventListener("event", events.Stream(channel))
 ```
+
 * handlers
+
 ```go
 type Handler struct {}
 
@@ -104,7 +110,9 @@ object.AddEventListener("event", Handler{})
 // or
 object.On("event", Handler{}, Handler{}).On("anotherEvent", Handler{})
 ```
+
 * functions
+
 ```go
 object.AddEventListener("event", events.Callback(func(event events.Event){
 	// handle event
@@ -112,21 +120,21 @@ object.AddEventListener("event", events.Callback(func(event events.Event){
 ```
 
 ### Ticker
-Package `ticker` adds support of periodic events on top of events.Emitter
+
+`PeriodicEmitter` adds support for periodic events on `Emitter`
 
 ```go
 import (
-	"gopkg.in/ADone/go.events.v1/emitter/ticker"
-	"gopkg.in/ADone/go.events.v1/emitter"
+	"gopkg.in/adone/go.events.v2"
 	"time"
 )
 ```
 
 ```go
-tick := ticker.New(emitter.New())
-tick.RegisterEvent("periodicEvent1", 5*time.Second)
+tick := events.NewTicker(events.NewEmitter())
+tick.RegisterEvent("periodic.event.1", 5*time.Second)
 // or
-tick.RegisterEvent("periodicEvent2", time.NewTicker(5*time.Second))
-// or directly with handlers
-tick.RegisterEvent("periodicEvent3", 5*time.Second, Handler{})
+tick.RegisterEvent("periodic.event.2", time.NewTicker(5*time.Second))
+// or
+tick.RegisterEvent("periodic.event.3", 5*time.Second, Handler{})
 ```

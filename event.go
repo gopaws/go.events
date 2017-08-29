@@ -1,46 +1,41 @@
 package events
 
-import (
-	"gopkg.in/ADone/go.meta.v1"
-)
-
-type Emitter interface {
-	On(string, ...Listener) Emitter
-	AddEventListener(string, ...Listener)
-	RemoveEventListeners(string)
-	Fire(interface{}, ...meta.Map)
+// EventOption for event
+type EventOption struct {
+	apply func(*Event)
 }
 
-type Dispatcher interface {
-	AddSubscribers(...Listener)
-	Dispatch(Event)
+// WithContext sets event metadata
+func WithContext(context Map) EventOption {
+	return EventOption{func(event *Event) {
+		for key, value := range context {
+			event.Context[key] = value
+		}
+	}}
 }
 
-type DispatcherFactory func() Dispatcher
+// New create new event with provided name and options
+func New(data interface{}, options ...EventOption) Event {
+	var event Event
 
-type Listener interface {
-	Handle(Event)
+	switch value := data.(type) {
+	case string:
+		event = Event{value, Map{}}
+	case Event:
+		event = value
+	}
+
+	for _, option := range options {
+		option.apply(&event)
+	}
+
+	return event
 }
 
-type Stream chan Event
-
-func (stream Stream) Handle(event Event) {
-	stream <- event
-}
-
-type Callback func(Event)
-
-func (callback Callback) Handle(event Event) {
-	callback(event)
-}
-
-func New(name string) Event {
-	return Event{name, meta.Map{}}
-}
-
+// Event
 type Event struct {
 	Key     string
-	Context meta.Map
+	Context Map
 }
 
 func (event *Event) String() string {
